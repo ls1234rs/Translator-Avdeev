@@ -1,0 +1,87 @@
+cmake_minimum_required(VERSION 3.20)
+
+project(Translator LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# ---- Library (header-only) ----
+set(TRANSLATOR_HEADERS
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/lexer.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/parser.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/stack.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/token.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/translator.h
+)
+
+add_library(translator INTERFACE)
+target_include_directories(translator INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_sources(translator INTERFACE ${TRANSLATOR_HEADERS})
+
+# ---- App (main.cpp должен быть ОТДЕЛЬНО от include) ----
+# Рекомендуемая структура:
+#   src/main.cpp
+# а не include/main.cpp
+set(APP_SOURCES
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp
+)
+
+add_executable(translator_app ${APP_SOURCES})
+target_link_libraries(translator_app PRIVATE translator)
+
+# Группировка для Visual Studio
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/include"
+             PREFIX "Header Files"
+             FILES ${TRANSLATOR_HEADERS})
+
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/src"
+             PREFIX "Source Files"
+             FILES ${APP_SOURCES})
+
+# Чтобы в VS было удобно запускать по F5 именно приложение
+set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT translator_app)
+
+# ---- Tests ----
+option(ENABLE_TESTS "Build the unit tests" ON)
+
+if(ENABLE_TESTS)
+    enable_testing()
+
+    add_library(gtest STATIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/gtest/gtest-all.cc
+    )
+    target_include_directories(gtest PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/gtest
+    )
+    target_compile_definitions(gtest PUBLIC
+        GTEST_HAS_TR1_TUPLE=0
+        GTEST_HAS_STD_TUPLE=1
+    )
+
+    add_library(gtest_main STATIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/test_main.cpp
+    )
+    target_link_libraries(gtest_main PUBLIC gtest)
+
+    add_executable(translator_tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/test/test_translator.cpp
+    )
+    target_link_libraries(translator_tests PRIVATE translator gtest_main)
+
+    source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/test"
+                 PREFIX "Test Files"
+                 FILES
+                    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_main.cpp
+                    ${CMAKE_CURRENT_SOURCE_DIR}/test/test_translator.cpp)
+
+    source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}/gtest"
+                 PREFIX "GoogleTest Files"
+                 FILES
+                    ${CMAKE_CURRENT_SOURCE_DIR}/gtest/gtest-all.cc
+                    ${CMAKE_CURRENT_SOURCE_DIR}/gtest/gtest.h)
+
+    add_test(NAME TranslatorTests COMMAND translator_tests)
+endif()
